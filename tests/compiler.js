@@ -6,6 +6,7 @@
   var Template;
   var Loader;
   var Environment;
+  var r;
   var fs;
   var render;
   var equal;
@@ -17,12 +18,14 @@
     util = require('./util');
     Template = require('../nunjucks/src/environment').Template;
     Environment = require('../nunjucks/src/environment').Environment;
+    r = require('../nunjucks/src/runtime');
     fs = require('fs');
   } else {
     expect = window.expect;
     util = window.util;
     Template = nunjucks.Template;
     Environment = nunjucks.Environment;
+    r = nunjucks.runtime;
   }
 
   render = util.render;
@@ -270,6 +273,42 @@
       equal('{{ "foo" if bar else "baz" }}', {
         bar: true
       }, 'foo');
+
+      finish(done);
+    });
+
+    it('should support indexed access on SafeString values', function(done) {
+      var ctx = {
+        code: r.markSafe('A-1024'),
+        title: r.markSafe('<b>Hi</b>'),
+        plain: '<b>Hi</b>'
+      };
+
+      equal('{{ code[0] }}', ctx, 'A');
+      equal('{{ code[5] }}', ctx, '4');
+      // the character of a safe string stays safe (not escaped)
+      equal('{{ title[0] }}', ctx, '<');
+      equal('{% if title[0] == "<" %}yes{% endif %}', ctx, 'yes');
+      equal('{% if plain[0] == "<" %}yes{% endif %}', ctx, 'yes');
+      // out-of-range and missing properties stay empty
+      equal('{{ code[100] }}', ctx, '');
+      equal('{{ code.nope }}', ctx, '');
+
+      finish(done);
+    });
+
+    it('should support the "in" operator on SafeString values', function(done) {
+      var ctx = {
+        code: r.markSafe('A-1024'),
+        title: r.markSafe('<b>Hi</b>'),
+        plain: '<b>Hi</b>'
+      };
+
+      equal('{% if "1024" in code %}internal{% else %}external{% endif %}',
+        ctx, 'internal');
+      equal('{% if "Hi" in title %}yes{% endif %}', ctx, 'yes');
+      equal('{% if "Hi" in plain %}yes{% endif %}', ctx, 'yes');
+      equal('{% if "nope" in code %}yes{% else %}no{% endif %}', ctx, 'no');
 
       finish(done);
     });

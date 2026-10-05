@@ -2,13 +2,16 @@
   'use strict';
 
   var util;
+  var r;
   var equal;
   var finish;
 
   if (typeof require !== 'undefined') {
     util = require('./util');
+    r = require('../nunjucks/src/runtime');
   } else {
     util = window.util;
+    r = nunjucks.runtime;
   }
 
   equal = util.jinjaEqual;
@@ -120,6 +123,38 @@
           arr: arr
         },
         'bdf');
+      finish(done);
+    });
+    it('should support slices of string variables', function(done) {
+      equal('{{ plain[0:3] }}',
+        {
+          plain: '<b>Hi</b>'
+        },
+        '&lt;b&gt;');
+      equal('{{ plain[2:] }}',
+        {
+          plain: 'A-1024'
+        },
+        '1024');
+      equal('{{ plain[::-1] }}',
+        {
+          plain: 'abc'
+        },
+        'cba');
+      finish(done);
+    });
+    it('should support slices of SafeString variables', function(done) {
+      equal('{{ code[2:] }}',
+        {
+          code: r.markSafe('A-1024')
+        },
+        '1024');
+      // a slice of a safe string stays safe (not escaped)
+      equal('{{ title[0:3] }}',
+        {
+          title: r.markSafe('<b>Hi</b>')
+        },
+        '<b>');
       finish(done);
     });
   });

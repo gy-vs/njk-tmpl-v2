@@ -384,7 +384,10 @@ function extend(obj1, obj2) {
 exports._assign = exports.extend = extend;
 
 function inOperator(key, val) {
-  if (isArray(val) || isString(val)) {
+  // SafeString values are not string primitives, so they fail the
+  // isString check, but they should still support substring searches
+  // (they are instanceof String through their prototype chain).
+  if (isArray(val) || isString(val) || val instanceof String) {
     return val.indexOf(key) !== -1;
   } else if (isObject(val)) {
     return key in val;

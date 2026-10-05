@@ -232,6 +232,14 @@ function memberLookup(obj, val) {
     return undefined;
   }
 
+  if (obj instanceof SafeString && obj[val] === undefined) {
+    // A SafeString wraps a primitive string, but indexed access to the
+    // wrapped characters (e.g. `str[0]`) does not work on the wrapper
+    // object itself, so look the character up on the wrapped value.
+    const char = obj.val[val];
+    return (char === undefined) ? undefined : copySafeness(obj, char);
+  }
+
   if (typeof obj[val] === 'function') {
     return (...args) => obj[val].apply(obj, args);
   }

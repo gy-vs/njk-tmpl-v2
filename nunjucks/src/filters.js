@@ -151,6 +151,10 @@ function safe(str) {
 exports.safe = safe;
 
 function first(arr) {
+  if (arr instanceof r.SafeString) {
+    const str = arr.toString();
+    return r.copySafeness(arr, str[0]);
+  }
   return arr[0];
 }
 
@@ -203,6 +207,10 @@ function join(arr, del, attr) {
 exports.join = join;
 
 function last(arr) {
+  if (arr instanceof r.SafeString) {
+    const str = arr.toString();
+    return r.copySafeness(arr, str[str.length - 1]);
+  }
   return arr[arr.length - 1];
 }
 
@@ -233,6 +241,8 @@ exports.length = lengthFilter;
 function list(val) {
   if (lib.isString(val)) {
     return val.split('');
+  } else if (val instanceof r.SafeString) {
+    return val.toString().split('').map((ch) => r.markSafe(ch));
   } else if (lib.isObject(val)) {
     return lib._entries(val || {}).map(([key, value]) => ({key, value}));
   } else if (lib.isArray(val)) {
@@ -261,6 +271,10 @@ function nl2br(str) {
 exports.nl2br = nl2br;
 
 function random(arr) {
+  if (arr instanceof r.SafeString) {
+    const str = arr.toString();
+    return r.copySafeness(arr, str[Math.floor(Math.random() * str.length)]);
+  }
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
@@ -375,7 +389,7 @@ exports.replace = replace;
 
 function reverse(val) {
   var arr;
-  if (lib.isString(val)) {
+  if (lib.isString(val) || val instanceof r.SafeString) {
     arr = list(val);
   } else {
     // Copy it
@@ -384,7 +398,7 @@ function reverse(val) {
 
   arr.reverse();
 
-  if (lib.isString(val)) {
+  if (lib.isString(val) || val instanceof r.SafeString) {
     return r.copySafeness(val, arr.join(''));
   }
   return arr;

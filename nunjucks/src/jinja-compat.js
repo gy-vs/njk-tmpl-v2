@@ -174,6 +174,13 @@ function installCompat() {
       }
       results.push(runtime.memberLookup(obj, i));
     }
+
+    if (lib.isString(obj) || obj instanceof runtime.SafeString) {
+      // Slicing a string produces another string, not an array of
+      // characters, and a SafeString slice stays safe.
+      return runtime.copySafeness(obj, results.join(''));
+    }
+
     return results;
   }
 
