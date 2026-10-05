@@ -1,14 +1,18 @@
 (function() {
   'use strict';
 
-  var expect, util, finish, render;
+  var expect, util, finish, render, runtime, lib;
 
   if (typeof require !== 'undefined') {
     expect = require('expect.js');
     util = require('./util');
+    runtime = require('../nunjucks/src/runtime');
+    lib = require('../nunjucks/src/lib');
   } else {
     expect = window.expect;
     util = window.util;
+    runtime = nunjucks.runtime;
+    lib = nunjucks.lib;
   }
 
   finish = util.finish;
@@ -125,6 +129,62 @@
       delete Object.getPrototypeOf(data).payload;
 
       finish(done);
+    });
+  });
+
+  describe('SafeString', function() {
+    it('is a string-like object, not a plain object', function() {
+      var s = runtime.markSafe('abc');
+      expect(s).to.be.a(runtime.SafeString);
+      expect(lib.isString(s)).to.be(true);
+      expect(lib.isObject(s)).to.be(false);
+    });
+
+    it('supports indexed access like a string', function() {
+      var s = runtime.markSafe('A-1024');
+      expect(s[0]).to.be('A');
+      expect(s[5]).to.be('4');
+      expect(s[99]).to.be(undefined);
+    });
+
+    it('has the correct length', function() {
+      expect(runtime.markSafe('A-1024').length).to.be(6);
+      expect(runtime.markSafe('').length).to.be(0);
+    });
+
+    it('coerces to the underlying string', function() {
+      var s = runtime.markSafe('<b>Hi</b>');
+      expect(String(s)).to.be('<b>Hi</b>');
+      expect('' + s).to.be('<b>Hi</b>');
+      expect(s.toString()).to.be('<b>Hi</b>');
+      expect(s.valueOf()).to.be('<b>Hi</b>');
+    });
+
+    it('supports substring search and string methods', function() {
+      var s = runtime.markSafe('A-1024');
+      expect(lib.inOperator('1024', s)).to.be(true);
+      expect(lib.inOperator('zzz', s)).to.be(false);
+      expect(s.indexOf('1024')).to.be(2);
+      expect(s.split('').join('')).to.be('A-1024');
+    });
+
+    it('can be built without new', function() {
+      // eslint-disable-next-line new-cap
+      var s = runtime.SafeString('abc');
+      expect(s).to.be.a(runtime.SafeString);
+      expect(String(s)).to.be('abc');
+    });
+
+    it('marks non-string inputs as empty-safe strings', function() {
+      expect(String(new runtime.SafeString(undefined))).to.be('');
+      expect(String(new runtime.SafeString(null))).to.be('');
+      expect(String(new runtime.SafeString(123))).to.be('123');
+    });
+
+    it('passes through non-strings in markSafe', function() {
+      expect(runtime.markSafe(42)).to.be(42);
+      expect(runtime.markSafe(null)).to.be(null);
+      expect(Array.isArray(runtime.markSafe([1, 2]))).to.be(true);
     });
   });
 }());

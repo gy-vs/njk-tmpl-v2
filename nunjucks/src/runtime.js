@@ -156,31 +156,117 @@ function numArgs(args) {
 // A SafeString object indicates that the string should not be
 // autoescaped. This happens magically because autoescaping only
 // occurs on primitive string objects.
-function SafeString(val) {
-  if (typeof val !== 'string') {
-    return val;
+//
+// It is backed by a real String object so that, apart from the
+// escaping decision, it behaves like an ordinary string in
+// templates (indexed access, slicing, iteration, `in`, filters,
+// etc.). Engines without a way to build a String object with a
+// custom prototype (e.g. very old IE) fall back to a plain object
+// that copies the indexed characters and String methods.
+var SAFE_MARKER = '__nunjucksSafeString__';
+var setStringPrototype;
+
+(function setupSafeStringProto() {
+  if (typeof Object.setPrototypeOf === 'function') {
+    setStringPrototype = function setStringPrototype(str, proto) {
+      Object.setPrototypeOf(str, proto);
+    };
+    return;
   }
 
-  this.val = val;
-  this.length = val.length;
-}
+  if (typeof Object.getPrototypeOf === 'function') {
+    var test = new String('');
+    test.__proto__ = null;
+    if (Object.getPrototypeOf(test) === null) {
+      setStringPrototype = function setStringPrototype(str, proto) {
+        str.__proto__ = proto;
+      };
+    }
+  }
+}());
 
 SafeString.prototype = Object.create(String.prototype, {
-  length: {
+  constructor: {
+    value: SafeString,
     writable: true,
-    configurable: true,
-    value: 0
+    configurable: true
   }
 });
-SafeString.prototype.valueOf = function valueOf() {
-  return this.val;
-};
-SafeString.prototype.toString = function toString() {
-  return this.val;
-};
+
+// Fallback prototype for engines (e.g. very old IE) without a way
+// to give a String object a custom prototype. It forwards every
+// String method to a backing primitive string.
+var SafeStringFallbackProto = Object.create(null);
+(function setupSafeStringFallbackProto() {
+  function forward(methodName) {
+    return function method() {
+      var result = String.prototype[methodName].apply(
+        this.__safeValue__,
+        Array.prototype.slice.call(arguments)
+      );
+      // String-returning methods keep the safe marking.
+      return (typeof result === 'string') ? new SafeString(result) : result;
+    };
+  }
+
+  var names = Object.getOwnPropertyNames(String.prototype);
+  for (var i = 0; i < names.length; i++) {
+    var name = names[i];
+    if (name !== 'constructor' &&
+        typeof String.prototype[name] === 'function') {
+      SafeStringFallbackProto[name] = forward(name);
+    }
+  }
+
+  // These must return the raw primitive, otherwise coercing a
+  // SafeString back to a string would recurse.
+  SafeStringFallbackProto.toString = function toString() {
+    return this.__safeValue__;
+  };
+  SafeStringFallbackProto.valueOf = function valueOf() {
+    return this.__safeValue__;
+  };
+}());
+
+function SafeString(val) {
+  if (!(this instanceof SafeString)) {
+    return new SafeString(val);
+  }
+
+  if (typeof val !== 'string') {
+    val = (val === null || val === undefined) ? '' : String(val);
+  }
+
+  if (setStringPrototype) {
+    var str = new String(val);
+    setStringPrototype(str, SafeString.prototype);
+    return str;
+  }
+
+  // Fallback for engines without setPrototypeOf or an assignable
+  // __proto__ (IE <= 10): emulate a String object with a plain
+  // object carrying the indexed characters and String methods. It
+  // is identified as safe (instanceof cannot reach
+  // SafeString.prototype since no prototype swap is possible) and
+  // as a string by lib.isString (it reports [object Object]).
+  var fallback = Object.create(SafeStringFallbackProto);
+  fallback[SAFE_MARKER] = true;
+  fallback.__safeValue__ = val;
+  fallback.length = val.length;
+  for (var i = 0; i < val.length; i++) {
+    fallback[i] = val.charAt(i);
+  }
+  return fallback;
+}
+
+function isSafeString(val) {
+  return val instanceof SafeString ||
+    (val !== null && typeof val === 'object' &&
+      Object.prototype.hasOwnProperty.call(val, SAFE_MARKER));
+}
 
 function copySafeness(dest, target) {
-  if (dest instanceof SafeString) {
+  if (isSafeString(dest)) {
     return new SafeString(target);
   }
   return target.toString();
@@ -209,7 +295,7 @@ function markSafe(val) {
 function suppressValue(val, autoescape) {
   val = (val !== undefined && val !== null) ? val : '';
 
-  if (autoescape && !(val instanceof SafeString)) {
+  if (autoescape && !isSafeString(val)) {
     val = lib.escape(val.toString());
   }
 
@@ -371,6 +457,7 @@ module.exports = {
   isArray: lib.isArray,
   keys: lib.keys,
   SafeString: SafeString,
+  isSafeString: isSafeString,
   copySafeness: copySafeness,
   markSafe: markSafe,
   asyncEach: asyncEach,

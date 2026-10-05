@@ -7,6 +7,7 @@
   var Loader;
   var Environment;
   var fs;
+  var runtime;
   var render;
   var equal;
   var finish;
@@ -17,12 +18,14 @@
     util = require('./util');
     Template = require('../nunjucks/src/environment').Template;
     Environment = require('../nunjucks/src/environment').Environment;
+    runtime = require('../nunjucks/src/runtime');
     fs = require('fs');
   } else {
     expect = window.expect;
     util = window.util;
     Template = nunjucks.Template;
     Environment = nunjucks.Environment;
+    runtime = nunjucks.runtime;
   }
 
   render = util.render;
@@ -2320,6 +2323,65 @@
         '{% block block1 %}force{% endblock %}',
         'may the forth be with you\n');
       finish(done);
+    });
+  });
+
+  describe('safe strings used as ordinary strings', function() {
+    var ctx;
+
+    beforeEach(function() {
+      ctx = {
+        code: runtime.markSafe('A-1024'),
+        title: runtime.markSafe('<b>Hi</b>'),
+        plain: '<b>Hi</b>'
+      };
+    });
+
+    it('should support indexed access', function() {
+      equal('{{ code[0] }}', ctx, { autoescape: true }, 'A');
+      // the indexed character is a plain string, matching jinja: it
+      // is compared like a string and (re-)escaped on output
+      equal('{{ title[0] }}', ctx, { autoescape: true }, '&lt;');
+      equal('{{ title[0] == "<" }}', ctx, { autoescape: true }, 'true');
+      equal('{{ plain[0] == "<" }}', ctx, { autoescape: true }, 'true');
+      equal('{{ code[code.length - 1] }}', ctx, { autoescape: true }, '4');
+    });
+
+    it('should support the in operator', function() {
+      equal('{{ "1024" in code }}', ctx, { autoescape: true }, 'true');
+      equal('{{ "zzz" in code }}', ctx, { autoescape: true }, 'false');
+      equal('{{ "Hi" in title }}', ctx, { autoescape: true }, 'true');
+      equal('{{ "Hi" in plain }}', ctx, { autoescape: true }, 'true');
+      equal(
+        '{% if "1024" in code %}internal{% else %}external{% endif %}',
+        ctx,
+        { autoescape: true },
+        'internal');
+    });
+
+    it('should iterate like a string', function(done) {
+      equal(
+        '{% for c in code %}{{ c }}{% endfor %}',
+        ctx,
+        { autoescape: true },
+        'A-1024');
+      // iterated characters are plain strings (like jinja), so the
+      // markup is escaped even though the source was safe
+      render(
+        '{% for c in title %}{{ c }}{% endfor %}',
+        ctx,
+        { autoescape: true },
+        function(err, res) {
+          expect(err).to.equal(null);
+          expect(res).to.be('&lt;b&gt;Hi&lt;/b&gt;');
+        });
+      finish(done);
+    });
+
+    it('should still not be autoescaped on direct output', function() {
+      equal('{{ title }}', ctx, { autoescape: true }, '<b>Hi</b>');
+      equal('{{ code }}', ctx, { autoescape: true }, 'A-1024');
+      equal('{{ plain }}', ctx, { autoescape: true }, '&lt;b&gt;Hi&lt;/b&gt;');
     });
   });
 }());

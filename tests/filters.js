@@ -220,6 +220,7 @@
 
     it('first', function(done) {
       equal('{{ [1,2,3] | first }}', '1');
+      equal('{{ str | first }}', { str: r.markSafe('A-1024') }, 'A');
       finish(done);
     });
 
@@ -464,6 +465,7 @@
 
     it('last', function(done) {
       equal('{{ [1,2,3] | last }}', '3');
+      equal('{{ str | last }}', { str: r.markSafe('A-1024') }, '4');
       finish(done);
     });
 
@@ -575,6 +577,9 @@
           person: person
         }, 'name: Joe - age: 83 - ');
       equal('{% for i in [1, 2] | list %}{{ i }}{% endfor %}', '12');
+      equal('{{ str | list | length }}', { str: r.markSafe('A-1024') }, '6');
+      equal('{% for i in str | list %}{{ i }},{% endfor %}',
+        { str: r.markSafe('A-1024') }, 'A,-,1,0,2,4,');
       finish(done);
     });
 
@@ -614,6 +619,9 @@
           expect(val).to.be.within(1, 9);
         });
       }
+
+      // a SafeString picks one of its characters
+      equal('{{ (str | random) | length }}', { str: r.markSafe('A-1024') }, '1');
 
       finish(done);
     });
@@ -733,6 +741,19 @@
     it('reverse', function(done) {
       equal('{{ "abcdef" | reverse }}', 'fedcba');
       equal('{% for i in [1, 2, 3, 4] | reverse %}{{ i }}{% endfor %}', '4321');
+      // reversing a SafeString keeps the result safe, like jinja
+      equal('{{ str | reverse }}',
+        { str: r.markSafe('A-1024') },
+        { autoescape: true },
+        '4201-A');
+      equal('{{ str | reverse }}',
+        { str: r.markSafe('<b>Hi</b>') },
+        { autoescape: true },
+        '>b/<iH>b<');
+      equal('{{ "<b>Hi</b>" | reverse }}',
+        {},
+        { autoescape: true },
+        '&gt;b/&lt;iH&gt;b&lt;');
       finish(done);
     });
 

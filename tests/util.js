@@ -75,6 +75,18 @@
     }
   }
 
+  function installCompat() {
+    var uninstalls = [nunjucks.installJinjaCompat()];
+    if (nunjucksFull !== nunjucks) {
+      uninstalls.push(nunjucksFull.installJinjaCompat());
+    }
+    return function uninstall() {
+      for (var i = 0; i < uninstalls.length; i++) {
+        uninstalls[i]();
+      }
+    };
+  }
+
   function finish(done) {
     if (numAsyncs > 0) {
       doneHandler = done;
@@ -206,6 +218,7 @@
     module.exports.render = render;
     module.exports.equal = equal;
     module.exports.jinjaEqual = jinjaEqual;
+    module.exports.installCompat = installCompat;
     module.exports.finish = finish;
     module.exports.normEOL = normEOL;
     module.exports.isSlim = isSlim;
@@ -215,6 +228,7 @@
       render: render,
       equal: equal,
       jinjaEqual: jinjaEqual,
+      installCompat: installCompat,
       finish: finish,
       normEOL: normEOL,
       isSlim: isSlim,

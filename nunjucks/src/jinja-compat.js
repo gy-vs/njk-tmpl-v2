@@ -146,6 +146,10 @@ function installCompat() {
   }
 
   function sliceLookup(obj, start, stop, step) {
+    var isStr = lib.isString(obj);
+    // Keep the original string value (including its safe marking)
+    // before `obj || []` below would replace an empty string.
+    var stringVal = isStr ? obj : null;
     obj = obj || [];
     if (start === null) {
       start = (step < 0) ? (obj.length - 1) : 0;
@@ -173,6 +177,12 @@ function installCompat() {
         break;
       }
       results.push(runtime.memberLookup(obj, i));
+    }
+
+    // Slicing a string in Jinja returns a string (and keeps the
+    // safe marking of the original value), not an array of chars.
+    if (isStr) {
+      return runtime.copySafeness(stringVal, results.join(''));
     }
     return results;
   }

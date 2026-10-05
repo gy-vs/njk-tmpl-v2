@@ -157,7 +157,11 @@ function isArray(obj) {
 exports.isArray = isArray;
 
 function isString(obj) {
-  return ObjProto.toString.call(obj) === '[object String]';
+  return ObjProto.toString.call(obj) === '[object String]' ||
+    // SafeString fallback objects on engines without an assignable
+    // __proto__ report [object Object]; recognize them via marker.
+    (obj !== null && typeof obj === 'object' &&
+      obj.__nunjucksSafeString__ === true);
 }
 
 exports.isString = isString;
